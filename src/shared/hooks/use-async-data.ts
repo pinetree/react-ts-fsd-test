@@ -4,6 +4,7 @@ interface UseAsyncDataOptions {
   retryCount?: number
   retryDelay?: number
   cacheTime?: number
+  cacheKey?: string
 }
 
 interface UseAsyncDataState<T> {
@@ -23,6 +24,17 @@ type UseAsyncDataLocalState<T> = Pick<
   'data' | 'error' | 'loading'
 >
 
+// TODO: add cache to local storage
+const cache = new Map<string, { data: unknown; timestamp: number }>()
+
+const setErrorState = (error: unknown) => {
+  return {
+    data: null,
+    loading: false,
+    error: error instanceof Error ? error : new Error('Unknown error'),
+  }
+}
+
 export const useAsyncData = <T>(
   fetchFn: UseAsyncDataFetchFn<T>,
   options?: UseAsyncDataOptions
@@ -32,6 +44,18 @@ export const useAsyncData = <T>(
     error: null,
     loading: false,
   })
+  const [retriesPerformed, setRetriesPerformed] = useState(0)
+  const [forceRefetch, setForceRefetch] = useState<Nullable<number>>(null)
+
+  const {
+    cacheKey,
+    cacheTime = 1000,
+    retryCount,
+    retryDelay = 100,
+  } = options || {}
+  if (options?.cacheTime && !cacheKey) {
+    console.warn('cacheKey is required when cacheTime is provided')
+  }
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -39,9 +63,23 @@ export const useAsyncData = <T>(
 
     const fetchData = async () => {
       setState(prev => ({ ...prev, loading: true }))
+
+      if (cacheKey) {
+        const cachedData = cache.get(cacheKey)
+        if (cachedData && Date.now() - cachedData.timestamp < cacheTime) {
+          console.log('return from cache')
+          setState({ data: cachedData.data as T, loading: false, error: null })
+          return
+        }
+      }
+
       try {
         const data = await fetchFn(abortController.signal)
         if (isMounted) {
+          if (cacheKey) {
+            cache.set(cacheKey, { data, timestamp: Date.now() })
+          }
+
           setState({ data, loading: false, error: null })
         }
       } catch (error) {
@@ -49,11 +87,23 @@ export const useAsyncData = <T>(
           isMounted &&
           !(error instanceof Error && error.name === 'AbortError')
         ) {
-          setState({
-            data: null,
-            loading: false,
-            error: error instanceof Error ? error : new Error('Unknown error'),
-          })
+          if (retryCount) {
+            if (retriesPerformed < retryCount) {
+              setRetriesPerformed(prev => prev + 1)
+
+              const exponentialDelay =
+                retryDelay * Math.pow(2, retriesPerformed)
+
+              setTimeout(() => {
+                console.log('retry', { exponentialDelay, retriesPerformed })
+                fetchData()
+              }, exponentialDelay)
+            } else {
+              setState(setErrorState(error))
+            }
+          } else {
+            setState(setErrorState(error))
+          }
         }
       }
     }
@@ -64,15 +114,25 @@ export const useAsyncData = <T>(
       isMounted = false
       abortController.abort()
     }
-  }, [fetchFn])
+  }, [
+    cacheKey,
+    cacheTime,
+    fetchFn,
+    retryCount,
+    retryDelay,
+    retriesPerformed,
+    forceRefetch,
+  ])
 
   const retry = () => {
-    setState(prev => ({ ...prev, loading: true }))
+    setForceRefetch(Date.now())
   }
 
   const mutate = (data: Partial<T>) => {
-    console.log(data)
-    // setData(prev => (prev ? { ...prev, ...data } : data))
+    setState(prev => ({
+      ...prev,
+      data: { ...prev.data, ...data } as T,
+    }))
   }
 
   return {
