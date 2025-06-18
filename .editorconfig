@@ -1,0 +1,3 @@
+[{*.js,*.tsx,*.ts,*.jsx,*.mdx}]
+indent_style = space
+indent_size = 2

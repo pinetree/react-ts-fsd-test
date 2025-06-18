@@ -1,0 +1,1 @@
+export type { NewsItem } from './types'
