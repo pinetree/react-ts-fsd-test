@@ -9,6 +9,7 @@ export const App = () => {
         <nav>
           <Link to="/">Home</Link>
           <Link to="/use-async-data">Use Async Data</Link>
+          <Link to="/modal">Modal</Link>
         </nav>
         <Routes>
           {routes.map(route => (
