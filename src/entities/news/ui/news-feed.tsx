@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useInfiniteQuery } from '@/shared/hooks/use-infinite-query'
-import { Skeleton } from '@/shared/ui/skeleton'
 import { fetchNews } from '../api'
+import { NewsSkeleton } from './news-skeleton'
 import './news-feed.css'
 
 export const NewsFeed = () => {
@@ -44,6 +44,9 @@ export const NewsFeed = () => {
     }
   }, [handleObserver])
 
+  // TODO: implement pull to refresh
+
+  // TODO: Implement virtualizer
   // const virtualizer = useVirtualizer({
   //   count: hasNextPage ? pages.length + 1 : pages.length,
   //   getScrollElement: () => parentRef.current!,
@@ -78,9 +81,12 @@ export const NewsFeed = () => {
           </div>
         )
       })}
-      <div ref={loadMoreRef} className="news-feed__load-more">
-        {isLoading ? <Skeleton /> : hasNextPage ? <div>Load more</div> : null}
-      </div>
+      {hasNextPage ? (
+        <div ref={loadMoreRef} className="news-feed__load-more">
+          &nbsp;
+        </div>
+      ) : null}
+      {isLoading && <NewsSkeleton />}
       {isError && <div>Error loading news</div>}
     </div>
   )

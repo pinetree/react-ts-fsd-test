@@ -37,3 +37,10 @@
   align-items: center;
   height: 100px;
 }
+
+.news-post-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
