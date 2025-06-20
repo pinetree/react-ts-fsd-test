@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 export interface InfiniteQueryState<T> {
   pages: T[][]
@@ -31,8 +31,11 @@ export const useInfiniteQuery = <T>(
   const [isError, setIsError] = useState(false)
   const [hasNextPage, setHasNextPage] = useState(true)
   const [nextPage, setNextPage] = useState(1)
-  let retries = 0
-
+  // Любой ререндер хост компонента сбросит retries в 0 и это не будет работать
+  // лучше использовать useRef
+  // let retries = 0
+  const retries = useRef(0)
+  
   const fetchNextPage = async () => {
     setIsLoading(true)
     try {
@@ -44,14 +47,14 @@ export const useInfiniteQuery = <T>(
       setPages(prev => [...prev, data])
       setHasNextPage(hasMore)
       setNextPage(newNextPage)
-      retries = 0
+      retries.current = 0
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Network error')) {
           console.log('Network error', retries)
-          if (retries < MAX_RETRIES) {
+          if (retries.current < MAX_RETRIES) {
             fetchNextPage()
-            retries++
+            retries.current++
           } else {
             setIsError(true)
             setHasNextPage(false)
@@ -62,7 +65,7 @@ export const useInfiniteQuery = <T>(
         setHasNextPage(false)
       }
     } finally {
-      if (retries === 0 || retries === MAX_RETRIES) {
+      if (retries.current === 0 || retries.current === MAX_RETRIES) {
         setIsLoading(false)
       }
     }

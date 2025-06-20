@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useInfiniteQuery } from '@/shared/hooks/use-infinite-query'
+import { useRef } from 'react'
 import { fetchNews } from '../api'
 import { NewsSkeleton } from './news-skeleton'
 import './news-feed.css'
+import { useIntersection, useInfiniteQuery } from '@/shared/hooks'
+
+const INTERSECTION_OPTIONS: IntersectionObserverInit = {
+  threshold: 0.1,
+}
 
 export const NewsFeed = () => {
-  const loadMoreRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<IntersectionObserver | null>(null)
+  // Удалил реф на observer, он не нужен
+  // Удалил реф на loadMoreRef, так как теперь хук useIntersection его создает и возвращает
   const parentRef = useRef<HTMLDivElement>(null)
 
   const { pages, isLoading, isError, hasNextPage, fetchNextPage } =
@@ -16,33 +20,12 @@ export const NewsFeed = () => {
       pageSize: 20,
     })
 
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [target] = entries
-      if (target.isIntersecting && hasNextPage && !isLoading) {
-        fetchNextPage()
-      }
-    },
-    [fetchNextPage, hasNextPage, isLoading]
-  )
-
-  useEffect(() => {
-    const element = loadMoreRef.current
-
-    if (!element) return
-
-    observerRef.current = new IntersectionObserver(handleObserver, {
-      threshold: 0.1,
-    })
-
-    observerRef.current.observe(element)
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
+  // Вынес в отдельный хук  
+  const loadMoreRef = useIntersection(target => {
+    if (target.isIntersecting && hasNextPage && !isLoading) {
+      fetchNextPage()
     }
-  }, [handleObserver])
+  }, INTERSECTION_OPTIONS)
 
   // TODO: implement pull to refresh
 
@@ -57,19 +40,20 @@ export const NewsFeed = () => {
 
   if (!pages) return null
 
-  const news = pages.flat() ?? []
-
-  console.log({ news, isLoading, isError, hasNextPage })
+  // console.log({ news, isLoading, isError, hasNextPage })
 
   return (
     <div className="news-feed" ref={parentRef}>
-      {news.map(item => {
+      {/*
+        Переделал на flatMap + map, чтобы избежать лишних итераций по массиву (хоть он потенциально и небольшой)
+      */}
+      {pages.flatMap(page => {
         /* {virtualizer.getVirtualItems().map(virtualItem => {
         const item = news[virtualItem.index]
 
         if (!item) return null */
 
-        return (
+        return page.map(item => (
           <div className="news-feed__item" key={item.id}>
             <div className="news-feed__item-title">{item.title}</div>
             <div className="news-feed__item-summary">
@@ -79,7 +63,7 @@ export const NewsFeed = () => {
               </div>
             </div>
           </div>
-        )
+        ))
       })}
       {hasNextPage ? (
         <div ref={loadMoreRef} className="news-feed__load-more">
